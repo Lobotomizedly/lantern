@@ -1,0 +1,1 @@
+"""Lantern - Narrative Intelligence Platform."""

@@ -1,0 +1,395 @@
+version: "3.9"
+
+services:
+  # =============================================================================
+  # PostgreSQL with pgvector extension for vector similarity search
+  # =============================================================================
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lantern-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lantern}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lantern_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-lantern}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lantern} -d ${POSTGRES_DB:-lantern}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Redis for caching, session management, and Celery broker
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: lantern-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # OpenSearch for full-text search and narrative analysis
+  # =============================================================================
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: lantern-opensearch
+    restart: unless-stopped
+    environment:
+      - cluster.name=lantern-cluster
+      - node.name=lantern-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+      - "${OPENSEARCH_PERF_PORT:-9600}:9600"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # OpenSearch Dashboards for visualization
+  # =============================================================================
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: lantern-opensearch-dashboards
+    restart: unless-stopped
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # MinIO - S3-compatible object storage for documents and media
+  # =============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: lantern-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lantern_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lantern_secret_key}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # MinIO client for bucket initialization
+  # =============================================================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: lantern-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set lantern http://minio:9000 ${MINIO_ROOT_USER:-lantern_admin} ${MINIO_ROOT_PASSWORD:-lantern_secret_key};
+      mc mb --ignore-existing lantern/documents;
+      mc mb --ignore-existing lantern/media;
+      mc mb --ignore-existing lantern/exports;
+      mc mb --ignore-existing lantern/models;
+      mc anonymous set download lantern/exports;
+      exit 0;
+      "
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Temporal - Workflow orchestration for complex pipelines
+  # =============================================================================
+  temporal:
+    image: temporalio/auto-setup:1.22.4
+    container_name: lantern-temporal
+    restart: unless-stopped
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-lantern}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-lantern_secret}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    volumes:
+      - ./infrastructure/temporal-config:/etc/temporal/config/dynamicconfig:ro
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Temporal UI - Web interface for workflow management
+  # =============================================================================
+  temporal-ui:
+    image: temporalio/ui:2.21.3
+    container_name: lantern-temporal-ui
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    ports:
+      - "${TEMPORAL_UI_PORT:-8080}:8080"
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Backend - FastAPI application
+  # =============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.backend
+    container_name: lantern-backend
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-true}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-lantern}:${POSTGRES_PASSWORD:-lantern_secret}@postgres:5432/${POSTGRES_DB:-lantern}
+      - REDIS_URL=redis://redis:6379/0
+      - OPENSEARCH_URL=http://opensearch:9200
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-lantern_admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-lantern_secret_key}
+      - MINIO_SECURE=false
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
+    volumes:
+      - ./backend:/app
+      - backend_cache:/root/.cache
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Frontend - Next.js application
+  # =============================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.frontend
+    container_name: lantern-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your-nextauth-secret-change-in-production}
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Worker - Celery workers for background processing
+  # =============================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.worker
+    container_name: lantern-worker
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-lantern}:${POSTGRES_PASSWORD:-lantern_secret}@postgres:5432/${POSTGRES_DB:-lantern}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - OPENSEARCH_URL=http://opensearch:9200
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-lantern_admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-lantern_secret_key}
+      - MINIO_SECURE=false
+      - TEMPORAL_HOST=temporal
+      - TEMPORAL_PORT=7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - MODEL_CACHE_DIR=/app/models
+    volumes:
+      - ./backend:/app
+      - worker_models:/app/models
+      - worker_cache:/root/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Celery Beat - Scheduled task runner
+  # =============================================================================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.worker
+    container_name: lantern-celery-beat
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app beat --loglevel=info
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-lantern}:${POSTGRES_PASSWORD:-lantern_secret}@postgres:5432/${POSTGRES_DB:-lantern}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    volumes:
+      - ./backend:/app
+      - celerybeat_data:/app/celerybeat
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - lantern-network
+
+  # =============================================================================
+  # Flower - Celery monitoring dashboard
+  # =============================================================================
+  flower:
+    image: mher/flower:2.0
+    container_name: lantern-flower
+    restart: unless-stopped
+    command: celery --broker=redis://redis:6379/1 flower --port=5555
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - lantern-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  lantern-network:
+    driver: bridge
+    name: lantern-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    name: lantern-postgres-data
+  redis_data:
+    name: lantern-redis-data
+  opensearch_data:
+    name: lantern-opensearch-data
+  minio_data:
+    name: lantern-minio-data
+  backend_cache:
+    name: lantern-backend-cache
+  frontend_node_modules:
+    name: lantern-frontend-node-modules
+  frontend_next:
+    name: lantern-frontend-next
+  worker_models:
+    name: lantern-worker-models
+  worker_cache:
+    name: lantern-worker-cache
+  celerybeat_data:
+    name: lantern-celerybeat-data

@@ -1,0 +1,99 @@
+# =============================================================================
+# Lantern Backend Dockerfile
+# FastAPI application with Python 3.11
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Install dependencies
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim as builder
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+WORKDIR /build
+COPY backend/pyproject.toml backend/requirements.txt* ./
+
+# Install dependencies from requirements.txt if exists, otherwise from pyproject.toml
+RUN if [ -f requirements.txt ]; then \
+        pip install --upgrade pip && pip install -r requirements.txt; \
+    else \
+        pip install --upgrade pip && pip install .; \
+    fi
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime - Production image
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim as runtime
+
+# Labels
+LABEL maintainer="Lantern Team <team@lantern.ai>" \
+      description="Lantern Narrative Intelligence Platform - Backend API" \
+      version="1.0.0"
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PATH="/opt/venv/bin:$PATH" \
+    # Application settings
+    APP_MODULE=app.main:app \
+    HOST=0.0.0.0 \
+    PORT=8000 \
+    WORKERS=4 \
+    # Security
+    PYTHONHASHSEED=random
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    # Required for healthchecks
+    && rm -rf /var/lib/apt/lists/* \
+    # Create non-root user for security
+    && groupadd --gid 1000 lantern \
+    && useradd --uid 1000 --gid lantern --shell /bin/bash --create-home lantern
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=lantern:lantern backend/ .
+
+# Create directories for logs and temp files
+RUN mkdir -p /app/logs /app/tmp \
+    && chown -R lantern:lantern /app
+
+# Switch to non-root user
+USER lantern
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command - run with uvicorn
+CMD ["sh", "-c", "uvicorn ${APP_MODULE} --host ${HOST} --port ${PORT} --workers ${WORKERS} --loop uvloop --http httptools"]
+
+# Alternative: Run with gunicorn + uvicorn workers for production
+# CMD ["sh", "-c", "gunicorn ${APP_MODULE} -w ${WORKERS} -k uvicorn.workers.UvicornWorker -b ${HOST}:${PORT}"]

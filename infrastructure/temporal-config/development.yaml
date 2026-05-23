@@ -1,0 +1,75 @@
+# =============================================================================
+# Temporal Dynamic Configuration - Development
+# =============================================================================
+# This file contains dynamic configuration for Temporal server.
+# Values here can be changed at runtime without restarting the server.
+# =============================================================================
+
+# Frontend settings
+frontend.keepAliveMaxConnectionIdle:
+  - value: 600s
+
+frontend.keepAliveMaxConnectionAge:
+  - value: 3600s
+
+# History settings
+history.maximumBufferedEventsBatch:
+  - value: 500
+
+history.maximumSignalsPerExecution:
+  - value: 10000
+
+history.deleteActivityInfo:
+  - value: true
+
+# Matching settings
+matching.numTaskqueueReadPartitions:
+  - value: 4
+
+matching.numTaskqueueWritePartitions:
+  - value: 4
+
+# Worker settings
+worker.enableBatcher:
+  - value: true
+
+# System settings
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+
+# Visibility settings
+system.enableReadFromSecondaryVisibility:
+  - value: false
+
+# Rate limiting (development - relaxed limits)
+frontend.rps:
+  - value: 2000
+
+frontend.namespaceRPS:
+  - value: 1000
+
+# Archival (disabled for development)
+system.archivalStatus:
+  - value: "disabled"
+
+# Workflow execution limits
+limit.maxIDLength:
+  - value: 1000
+
+limit.blobSize.error:
+  - value: 2097152  # 2MB
+
+limit.blobSize.warn:
+  - value: 262144   # 256KB
+
+limit.historySize.error:
+  - value: 52428800  # 50MB
+
+limit.historySize.warn:
+  - value: 10485760  # 10MB
+
+limit.historyCount.error:
+  - value: 51200
+
+limit.historyCount.warn:
+  - value: 10240

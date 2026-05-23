@@ -1,0 +1,153 @@
+# =============================================================================
+# Lantern Worker Dockerfile
+# Celery workers with ML model support
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Install dependencies
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim as builder
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    git \
+    # For ML libraries
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+WORKDIR /build
+COPY backend/pyproject.toml backend/requirements.txt* backend/requirements-worker.txt* ./
+
+# Install base dependencies
+RUN pip install --upgrade pip setuptools wheel
+
+# Install dependencies - prioritize worker requirements if they exist
+RUN if [ -f requirements-worker.txt ]; then \
+        pip install -r requirements-worker.txt; \
+    elif [ -f requirements.txt ]; then \
+        pip install -r requirements.txt; \
+    else \
+        pip install .; \
+    fi
+
+# Install ML/NLP dependencies
+RUN pip install \
+    # Celery and task queue
+    celery[redis]==5.3.6 \
+    # ML/NLP libraries
+    torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu \
+    transformers==4.36.2 \
+    sentence-transformers==2.2.2 \
+    spacy==3.7.2 \
+    # Document processing
+    python-docx==1.1.0 \
+    pypdf2==3.0.1 \
+    pdfplumber==0.10.3 \
+    openpyxl==3.1.2 \
+    # Audio/Video processing (optional)
+    # openai-whisper==20231117 \
+    # Image processing
+    pillow==10.1.0 \
+    # Additional NLP
+    nltk==3.8.1 \
+    textblob==0.17.1
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_lg
+
+# Download NLTK data
+RUN python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger'); nltk.download('wordnet')"
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime - Production image
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim as runtime
+
+# Labels
+LABEL maintainer="Lantern Team <team@lantern.ai>" \
+      description="Lantern Narrative Intelligence Platform - Worker" \
+      version="1.0.0"
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PATH="/opt/venv/bin:$PATH" \
+    # Celery settings
+    CELERY_WORKER_CONCURRENCY=4 \
+    CELERY_WORKER_PREFETCH_MULTIPLIER=1 \
+    CELERY_TASK_ACKS_LATE=true \
+    # ML settings
+    TRANSFORMERS_CACHE=/app/models/transformers \
+    HF_HOME=/app/models/huggingface \
+    TORCH_HOME=/app/models/torch \
+    # Memory optimization
+    MALLOC_ARENA_MAX=2 \
+    # Security
+    PYTHONHASHSEED=random
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libgomp1 \
+    curl \
+    # For document processing
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    # For media processing
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    # Create non-root user for security
+    && groupadd --gid 1000 lantern \
+    && useradd --uid 1000 --gid lantern --shell /bin/bash --create-home lantern
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy NLTK data
+COPY --from=builder /root/nltk_data /home/lantern/nltk_data
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=lantern:lantern backend/ .
+
+# Create directories for models, logs, and temp files
+RUN mkdir -p /app/models/transformers \
+             /app/models/huggingface \
+             /app/models/torch \
+             /app/logs \
+             /app/tmp \
+             /app/celerybeat \
+    && chown -R lantern:lantern /app
+
+# Switch to non-root user
+USER lantern
+
+# Health check - verify Celery can connect to broker
+HEALTHCHECK --interval=60s --timeout=30s --start-period=30s --retries=3 \
+    CMD celery -A app.worker.celery_app inspect ping -d celery@$HOSTNAME || exit 1
+
+# Default command - run Celery worker
+CMD ["sh", "-c", "celery -A app.worker.celery_app worker \
+    --loglevel=info \
+    --concurrency=${CELERY_WORKER_CONCURRENCY} \
+    --prefetch-multiplier=${CELERY_WORKER_PREFETCH_MULTIPLIER} \
+    -Q default,high_priority,low_priority,ml_tasks,document_processing \
+    --hostname=worker@%h"]
