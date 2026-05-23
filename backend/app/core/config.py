@@ -56,6 +56,14 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://lantern:lantern@localhost:5432/lantern",
         description="PostgreSQL connection URL with asyncpg driver",
     )
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_database_url(cls, v: str) -> str:
+        """Convert postgresql:// to postgresql+asyncpg:// for async SQLAlchemy."""
+        if v and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
     database_pool_size: int = Field(
         default=10,
         description="Database connection pool size",
