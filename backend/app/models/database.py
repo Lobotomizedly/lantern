@@ -127,7 +127,7 @@ async def init_database() -> None:
         # Import here to avoid circular imports
         from app.models.orm import Base as ORMBase
 
-        await conn.run_sync(ORMBase.metadata.create_all)
+        await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
 
 
 async def close_database() -> None:
