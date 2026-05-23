@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import BaseSchema, NarrativeLifecycle
 
@@ -18,6 +18,8 @@ from app.models.schemas.common import BaseSchema, NarrativeLifecycle
 
 class AmplifierInfo(BaseModel):
     """Information about a narrative amplifier."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     entity_id: Optional[UUID] = Field(
         default=None,
@@ -41,6 +43,8 @@ class AmplifierInfo(BaseModel):
 
 class AmplifierResponse(BaseModel):
     """Response schema for amplifier details."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     narrative_id: UUID
@@ -68,6 +72,8 @@ NarrativeAmplifier = AmplifierResponse
 class ClaimResponse(BaseModel):
     """Response schema for claims within a narrative."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     narrative_id: UUID
     claim_text: str
@@ -91,6 +97,8 @@ NarrativeClaim = ClaimResponse
 class NarrativeLifecycleResponse(BaseModel):
     """Response schema for narrative lifecycle events."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     narrative_id: UUID
     status: str
@@ -111,6 +119,8 @@ NarrativeLifecycleHistory = NarrativeLifecycleResponse
 
 class NarrativeMetrics(BaseModel):
     """Metrics for a narrative."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     total_reach: int = 0
     unique_sources: int = 0
@@ -193,6 +203,8 @@ class NarrativeBase(BaseSchema):
 class NarrativeResponse(BaseModel):
     """Response schema for narrative listing."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     name: str
     description: Optional[str] = None
@@ -210,6 +222,8 @@ class NarrativeResponse(BaseModel):
 
 class NarrativeListResponse(BaseModel):
     """Paginated list of narratives."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     items: list[NarrativeResponse]
     total: int

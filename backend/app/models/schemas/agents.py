@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import BaseSchema, AgentRunStatus, AgentStepType
 
@@ -18,6 +18,8 @@ from app.models.schemas.common import BaseSchema, AgentRunStatus, AgentStepType
 
 class InvestigateRequest(BaseModel):
     """Request schema for spawning an Investigator agent."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     query: str = Field(
         ...,
@@ -57,6 +59,8 @@ class InvestigateRequest(BaseModel):
 class AgentCostSummary(BaseModel):
     """Cost summary for an agent run."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     input_tokens: int = Field(default=0, description="Total input tokens used")
     output_tokens: int = Field(default=0, description="Total output tokens used")
     total_tokens: int = Field(default=0, description="Total tokens used")
@@ -73,6 +77,8 @@ class AgentCostSummary(BaseModel):
 
 class AgentTrace(BaseModel):
     """Individual trace entry for an agent run."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     sequence_number: int
@@ -98,6 +104,8 @@ AgentTraceResponse = AgentTrace
 class AgentRunResponse(BaseModel):
     """Response schema for agent run listing."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     agent_type: str
     query: str
@@ -113,6 +121,8 @@ class AgentRunResponse(BaseModel):
 
 class AgentRunListResponse(BaseModel):
     """Paginated list of agent runs."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     items: list[AgentRunResponse]
     total: int

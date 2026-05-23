@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import (
     BaseSchema,
@@ -24,6 +24,8 @@ from app.models.schemas.common import (
 
 class SubjectConfigCreate(BaseModel):
     """Configuration for creating a subject."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     keywords: list[str] = Field(
         default_factory=list,
@@ -50,6 +52,8 @@ class SubjectConfigCreate(BaseModel):
 class SubjectConfigUpdate(BaseModel):
     """Configuration for updating a subject."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     keywords: Optional[list[str]] = None
     entities: Optional[list[str]] = None
     sources: Optional[list[str]] = None
@@ -61,6 +65,8 @@ class SubjectConfigUpdate(BaseModel):
 class SubjectConfig(BaseModel):
     """Full subject configuration response."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     keywords: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
@@ -68,8 +74,6 @@ class SubjectConfig(BaseModel):
     collection_schedule: Optional[str] = None
     is_active: bool = True
     last_collection_at: Optional[datetime] = None
-
-    model_config = {"from_attributes": True}
 
 
 # =============================================================================
@@ -139,6 +143,8 @@ class SubjectResponse(BaseSchema):
 class SubjectListResponse(BaseModel):
     """Paginated list of subjects."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     items: list[SubjectResponse]
     total: int
     page: int
@@ -147,6 +153,8 @@ class SubjectListResponse(BaseModel):
 
 class SubjectMetrics(BaseModel):
     """Metrics for a subject."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     total_documents: int = 0
     total_narratives: int = 0
@@ -187,6 +195,8 @@ class SubjectDetailResponse(SubjectResponse):
 
 class SubjectDigestResponse(BaseModel):
     """Sentinel digest for a subject."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     subject_id: UUID
     subject_name: str

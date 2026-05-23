@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import BaseSchema, ReviewStatus, ReviewType
 
@@ -18,6 +18,8 @@ from app.models.schemas.common import BaseSchema, ReviewStatus, ReviewType
 
 class ReviewDecision(BaseModel):
     """Decision made on a review item."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     decision: str = Field(
         ...,
@@ -38,6 +40,8 @@ class ReviewDecision(BaseModel):
 
 class ReviewItem(BaseModel):
     """Base review item information."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     review_type: str
@@ -63,6 +67,8 @@ class ReviewItem(BaseModel):
 class ReviewContext(BaseModel):
     """Context information for making a review decision."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     subject: Optional[dict[str, Any]] = None
     related_reviews: list[dict[str, Any]] = Field(default_factory=list)
     recent_activity: list[dict[str, Any]] = Field(default_factory=list)
@@ -75,6 +81,8 @@ class ReviewContext(BaseModel):
 
 class ReviewApproveRequest(BaseModel):
     """Request schema for approving a review item."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     feedback: Optional[str] = Field(
         default=None,
@@ -89,6 +97,8 @@ class ReviewApproveRequest(BaseModel):
 
 class ReviewRejectRequest(BaseModel):
     """Request schema for rejecting a review item."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     feedback: str = Field(
         ...,
@@ -115,6 +125,8 @@ class ReviewResponse(ReviewItem):
 
 class ReviewListResponse(BaseModel):
     """Paginated list of reviews."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     items: list[ReviewResponse]
     total: int

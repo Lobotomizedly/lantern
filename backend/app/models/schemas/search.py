@@ -6,7 +6,7 @@ from datetime import datetime, date
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import BaseSchema
 
@@ -18,6 +18,8 @@ from app.models.schemas.common import BaseSchema
 
 class DateRange(BaseModel):
     """Date range filter."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     start: Optional[date] = Field(
         default=None,
@@ -36,6 +38,8 @@ class DateRange(BaseModel):
 
 class SearchFilters(BaseModel):
     """Filters for search operations."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     subject_ids: Optional[list[UUID]] = Field(
         default=None,
@@ -75,6 +79,8 @@ class SearchFilters(BaseModel):
 class SearchRequest(BaseModel):
     """Request schema for search operations."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     query: Optional[str] = Field(
         default=None,
         max_length=1000,
@@ -112,6 +118,8 @@ class SearchRequest(BaseModel):
 
 class SearchResultItem(BaseModel):
     """Individual search result item."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(..., description="Document ID")
     title: Optional[str] = Field(default=None, description="Document title")
@@ -152,6 +160,8 @@ class SearchResultItem(BaseModel):
 class SearchFacets(BaseModel):
     """Facet counts for search filter UI."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     subjects: list[dict[str, Any]] = Field(
         default_factory=list, description="Subject facets"
     )
@@ -173,6 +183,8 @@ class SearchFacets(BaseModel):
 
 class SearchResponse(BaseModel):
     """Response schema for search operations."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     items: list[SearchResultItem] = Field(
         default_factory=list, description="Search results"

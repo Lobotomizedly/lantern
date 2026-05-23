@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import (
     BaseSchema,
@@ -23,6 +23,8 @@ from app.models.schemas.common import (
 
 class ArtifactContent(BaseModel):
     """Content of a generated artifact."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     format: str = Field(
         default="html",
@@ -49,6 +51,8 @@ class ArtifactContent(BaseModel):
 
 class ArtifactRequest(BaseModel):
     """Request schema for artifact operations."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     artifact_type: str = Field(
         ...,
@@ -95,6 +99,8 @@ ArtifactCreate = ArtifactCreateRequest
 class ArtifactResponse(BaseModel):
     """Response schema for artifact listing."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     artifact_type: str
     title: str
@@ -111,6 +117,8 @@ class ArtifactResponse(BaseModel):
 
 class ArtifactListResponse(BaseModel):
     """Paginated list of artifacts."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     items: list[ArtifactResponse]
     total: int

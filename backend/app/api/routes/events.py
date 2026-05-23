@@ -15,40 +15,12 @@ from app.api.deps import DatabaseSession, CurrentUser, Pagination
 from app.models.orm import Event, Entity
 from app.models.schemas import (
     EventRead,
-    PaginatedResponse,
+    EntitySummary,
+    EventListResponse,
+    EventDetailResponse,
 )
 
 router = APIRouter()
-
-
-# =============================================================================
-# Response Schemas
-# =============================================================================
-
-
-class EventListResponse(PaginatedResponse):
-    """Paginated response for events list."""
-
-    items: list[EventRead]
-
-
-class EntitySummary(EventRead.__class__.__bases__[0]):
-    """Summary of an entity involved in an event."""
-
-    id: UUID
-    name: str
-    entity_type: str
-    role: str | None = None
-
-    class Config:
-        from_attributes = True
-
-
-class EventDetailResponse(EventRead):
-    """Detailed event response with related data."""
-
-    involved_entities: list[EntitySummary] = []
-    evidence_item_count: int = 0
 
 
 # =============================================================================

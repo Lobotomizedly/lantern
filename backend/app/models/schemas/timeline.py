@@ -6,7 +6,7 @@ from datetime import datetime, date
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.schemas.common import BaseSchema
 
@@ -18,6 +18,8 @@ from app.models.schemas.common import BaseSchema
 
 class TimelineFilters(BaseModel):
     """Filters for timeline queries."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     subject_id: Optional[UUID] = Field(
         default=None,
@@ -52,6 +54,8 @@ class TimelineFilters(BaseModel):
 
 class TimelineRequest(BaseModel):
     """Request schema for timeline operations."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     subject_id: Optional[UUID] = Field(
         default=None,
@@ -93,6 +97,8 @@ class TimelineRequest(BaseModel):
 class TimelineEvent(BaseModel):
     """Individual timeline event."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID = Field(..., description="Event ID")
     event_type: str = Field(..., description="Type of event")
     title: str = Field(..., description="Event title")
@@ -120,6 +126,8 @@ TimelineEventResponse = TimelineEvent
 class TimelineAggregation(BaseModel):
     """Aggregated timeline statistics."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     period: str = Field(..., description="Aggregation period")
     buckets: list[dict[str, Any]] = Field(
         default_factory=list,
@@ -139,6 +147,8 @@ class TimelineAggregation(BaseModel):
 
 class TimelineResponse(BaseModel):
     """Response schema for timeline queries."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     events: list[TimelineEvent] = Field(
         default_factory=list,

@@ -169,6 +169,8 @@ class BaseSchema(BaseModel):
 class TimestampMixin(BaseModel):
     """Mixin for created_at and updated_at timestamps."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         description="Timestamp when the record was created",
@@ -187,6 +189,8 @@ class TimestampMixin(BaseModel):
 class PaginationParams(BaseModel):
     """Common pagination parameters."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     page: int = Field(default=1, ge=1, description="Page number")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
     sort_by: Optional[str] = Field(default=None, description="Field to sort by")
@@ -195,6 +199,8 @@ class PaginationParams(BaseModel):
 
 class PaginatedResponse(BaseModel):
     """Generic paginated response wrapper."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     items: list[Any] = Field(..., description="List of items")
     total: int = Field(..., description="Total number of items")
@@ -213,6 +219,8 @@ class PaginatedResponse(BaseModel):
 class WatchlistSource(BaseModel):
     """Configuration for a watchlist source."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     source_type: SourceType = Field(
         ...,
         description="Type of source to monitor",
@@ -229,6 +237,8 @@ class WatchlistSource(BaseModel):
 
 class WatchlistConfig(BaseModel):
     """Configuration for subject watchlist monitoring."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     sources: list[WatchlistSource] = Field(
         default_factory=list,
@@ -274,6 +284,8 @@ class WatchlistConfig(BaseModel):
 class AlertThresholds(BaseModel):
     """Alert threshold configuration."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     velocity_spike: float = Field(
         default=0.8,
         ge=0.0,
@@ -301,6 +313,8 @@ class AlertThresholds(BaseModel):
 
 class Citation(BaseModel):
     """Citation reference in an artifact."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     item_id: Optional[UUID] = Field(
         default=None,

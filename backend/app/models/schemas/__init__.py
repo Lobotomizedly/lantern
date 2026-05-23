@@ -93,6 +93,9 @@ from app.models.schemas.events import (
     EventCreate,
     EventUpdate,
     EventRead,
+    EntitySummary,
+    EventListResponse,
+    EventDetailResponse,
 )
 
 # Narrative schemas
@@ -246,6 +249,9 @@ __all__ = [
     "EventCreate",
     "EventUpdate",
     "EventRead",
+    "EntitySummary",
+    "EventListResponse",
+    "EventDetailResponse",
     # Narrative
     "AmplifierInfo",
     "AmplifierResponse",
