@@ -2,14 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from frontend directory
+COPY frontend/package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
-# Copy source code
-COPY . .
+# Copy source code from frontend directory
+COPY frontend/ .
 
 # Set build-time environment variable
 ARG NEXT_PUBLIC_API_URL
