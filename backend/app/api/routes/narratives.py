@@ -12,7 +12,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DatabaseSession, CurrentUser, Pagination, VerifiedSubjectAccess
-from app.models.orm import Narrative, NarrativeLifecycle, NarrativeAmplifier, Claim, Subject
+from app.models.orm import Narrative, NarrativeLifecycleEvent, NarrativeAmplifier, Claim, Subject
 from app.models.schemas.narratives import (
     NarrativeResponse,
     NarrativeListResponse,
