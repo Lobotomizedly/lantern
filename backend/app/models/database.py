@@ -117,17 +117,19 @@ async def init_database() -> None:
     This function should be called on application startup to ensure
     the database is properly configured with the pgvector extension.
     """
+    from app.core.config import settings
+
     async with engine.begin() as conn:
         # Enable pgvector extension
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         # Enable UUID extension for uuid_generate_v4()
         await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
 
-        # Create all tables defined in ORM models
-        # Import here to avoid circular imports
-        from app.models.orm import Base as ORMBase
-
-        await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
+        # Only auto-create tables in development
+        # Production should use Alembic migrations
+        if settings.is_development:
+            from app.models.orm import Base as ORMBase
+            await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
 
 
 async def close_database() -> None:
