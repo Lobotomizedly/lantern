@@ -131,6 +131,15 @@ async def init_database() -> None:
             from app.models.orm import Base as ORMBase
             await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
 
+        # Apply schema migrations (add missing columns)
+        # This is a simple migration approach for Railway deployments
+        try:
+            await conn.execute(text("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password VARCHAR(255);
+            """))
+        except Exception:
+            pass  # Column may already exist or table may not exist yet
+
 
 async def close_database() -> None:
     """
