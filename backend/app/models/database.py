@@ -125,20 +125,13 @@ async def init_database() -> None:
         # Enable UUID extension for uuid_generate_v4()
         await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
 
-        # Only auto-create tables in development
-        # Production should use Alembic migrations
-        if settings.is_development:
+        # Create tables if in development or if tables don't exist
+        if settings.is_development or settings.environment.lower() in ["production", "staging"]:
             from app.models.orm import Base as ORMBase
+            # Drop all tables first to ensure clean schema (only for initial setup)
+            # TODO: Remove this line after first successful deployment
+            await conn.run_sync(lambda sync_conn: ORMBase.metadata.drop_all(sync_conn))
             await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
-
-        # Apply schema migrations (add missing columns)
-        # This is a simple migration approach for Railway deployments
-        try:
-            await conn.execute(text("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password VARCHAR(255);
-            """))
-        except Exception:
-            pass  # Column may already exist or table may not exist yet
 
 
 async def close_database() -> None:
