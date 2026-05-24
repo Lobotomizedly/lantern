@@ -1,8 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Sparkles, Clock, X } from "lucide-react";
@@ -17,7 +15,7 @@ import { useSearchStore } from "@/lib/store";
 import { debounce, cn } from "@/lib/utils";
 import { SearchQuery, Source } from "@/types";
 
-export default function SearchPage() {
+function SearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { query, setQuery, resetQuery, recentSearches, addRecentSearch } =
@@ -280,5 +278,27 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function SearchLoading() {
+  return (
+    <div className="space-y-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-6">
+          <div className="h-8 w-48 bg-gray-200 rounded mx-auto animate-pulse" />
+          <div className="h-4 w-96 bg-gray-100 rounded mx-auto mt-2 animate-pulse" />
+        </div>
+        <div className="h-12 bg-gray-100 rounded animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<SearchLoading />}>
+      <SearchPageContent />
+    </Suspense>
   );
 }
