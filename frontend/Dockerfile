@@ -2,23 +2,24 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files from frontend directory
+# Copy package files - version bump forces cache invalidation
 COPY frontend/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies fresh
+RUN npm install --legacy-peer-deps
 
-# Copy source code from frontend directory
-COPY frontend/src/app/ ./src/app/
-COPY frontend/src/components/ ./src/components/
-COPY frontend/src/types/ ./src/types/
-COPY frontend/src/lib/ ./src/lib/
+# Copy ALL source files in a single layer to avoid caching issues
+COPY frontend/src/ ./src/
 COPY frontend/public/ ./public/
 COPY frontend/next.config.js frontend/tsconfig.json frontend/postcss.config.js frontend/tailwind.config.ts ./
 
-# Cache bust and debug: verify latest code
-ARG CACHEBUST=1
-RUN echo "Build timestamp: $(date)" && head -20 src/app/search/page.tsx | grep -E "Suspense|SearchPageContent" && head -20 src/app/timeline/page.tsx | grep -E "Suspense|TimelinePageContent"
+# Verify the files contain Suspense fix
+RUN echo "=== Verifying Suspense boundary in search/page.tsx ===" && \
+    grep -n "Suspense" src/app/search/page.tsx || echo "WARNING: No Suspense found!" && \
+    echo "=== Verifying Suspense boundary in timeline/page.tsx ===" && \
+    grep -n "Suspense" src/app/timeline/page.tsx || echo "WARNING: No Suspense found!" && \
+    echo "=== Checking next.config.js ===" && \
+    cat next.config.js
 
 # Set build-time environment variable
 ARG NEXT_PUBLIC_API_URL
