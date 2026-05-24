@@ -125,34 +125,9 @@ async def init_database() -> None:
         # Enable UUID extension for uuid_generate_v4()
         await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
 
-        # Import ORM models
+        # Import ORM models and create tables
         from app.models.orm import Base as ORMBase
-
-        # Drop ALL indexes in the public schema
-        drop_indexes_query = """
-        DO $$
-        DECLARE
-            idx RECORD;
-        BEGIN
-            FOR idx IN
-                SELECT indexname FROM pg_indexes
-                WHERE schemaname = 'public'
-                AND indexname NOT LIKE 'pg_%'
-            LOOP
-                EXECUTE 'DROP INDEX IF EXISTS ' || quote_ident(idx.indexname) || ' CASCADE';
-            END LOOP;
-        END $$;
-        """
-        try:
-            await conn.execute(text(drop_indexes_query))
-        except Exception as e:
-            print(f"Index cleanup: {e}")
-
-        # Drop all tables first, then recreate
-        await conn.run_sync(lambda sync_conn: ORMBase.metadata.drop_all(sync_conn))
-
-        # Create all tables fresh
-        await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn))
+        await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
 
 
 async def close_database() -> None:
