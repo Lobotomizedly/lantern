@@ -18,6 +18,7 @@ import {
   ApiError,
   DashboardStats,
   RecentActivity,
+  RecentActivityResponse,
   Source,
 } from "@/types";
 
@@ -73,10 +74,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getRecentActivity(limit = 20): Promise<RecentActivity[]> {
-  const response = await apiClient.get<RecentActivity[]>("/api/v1/dashboard/activity", {
+  const response = await apiClient.get<RecentActivityResponse>("/api/v1/dashboard/activity", {
     params: { limit },
   });
-  return response.data;
+  return response.data.activities || [];
 }
 
 // ============================================================================
@@ -99,7 +100,18 @@ export async function getSubject(id: string): Promise<Subject> {
 }
 
 export async function createSubject(data: Partial<Subject>): Promise<Subject> {
-  const response = await apiClient.post<Subject>("/api/v1/subjects", data);
+  // Transform frontend field names to backend field names
+  const payload = {
+    name: data.name,
+    subject_type: data.type,  // Backend expects subject_type, not type
+    description: data.description,
+    config: {
+      keywords: [],
+      entities: [],
+      sources: [],
+    },
+  };
+  const response = await apiClient.post<Subject>("/api/v1/subjects", payload);
   return response.data;
 }
 

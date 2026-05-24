@@ -23,20 +23,31 @@ import { formatRelativeTime, cn } from "@/lib/utils";
 import { RecentActivity, Subject } from "@/types";
 
 export default function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: getDashboardStats,
+    retry: false,
   });
 
   const { data: activity, isLoading: activityLoading } = useQuery({
     queryKey: ["recent-activity"],
     queryFn: () => getRecentActivity(10),
+    retry: false,
   });
 
   const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
     queryKey: ["subjects-preview"],
     queryFn: () => getSubjects(1, 5),
+    retry: false,
   });
+
+  // If not authenticated, redirect to login
+  if (statsError) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-6">
@@ -68,39 +79,39 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Subjects"
-          value={stats?.total_subjects ?? 0}
+          value={stats?.subjects?.total ?? 0}
           icon={Users}
           loading={statsLoading}
           href="/subjects"
         />
         <StatCard
           title="Items"
-          value={stats?.total_items ?? 0}
+          value={stats?.items?.total ?? 0}
           icon={FileText}
           loading={statsLoading}
-          subtitle={`+${stats?.items_today ?? 0} today`}
+          subtitle={`+${stats?.items?.new_today ?? 0} today`}
         />
         <StatCard
           title="Narratives"
-          value={stats?.total_narratives ?? 0}
+          value={stats?.narratives?.total ?? 0}
           icon={MessageSquare}
           loading={statsLoading}
           href="/search?type=narrative"
         />
         <StatCard
           title="Active Agents"
-          value={stats?.active_agents ?? 0}
+          value={stats?.agents?.running ?? 0}
           icon={Bot}
           loading={statsLoading}
           href="/agents"
         />
         <StatCard
-          title="Pending Reviews"
-          value={stats?.pending_reviews ?? 0}
+          title="Events"
+          value={stats?.events?.total ?? 0}
           icon={ClipboardCheck}
           loading={statsLoading}
-          href="/reviews"
-          highlight={stats?.pending_reviews ? stats.pending_reviews > 0 : false}
+          href="/timeline"
+          highlight={stats?.events?.new_today ? stats.events.new_today > 0 : false}
         />
       </div>
 
@@ -302,23 +313,23 @@ function SubjectRow({ subject }: { subject: Subject }) {
 function ActivityItem({ activity }: { activity: RecentActivity }) {
   const getActivityIcon = () => {
     switch (activity.type) {
-      case "item_ingested":
+      case "item":
         return FileText;
-      case "narrative_created":
-      case "narrative_updated":
+      case "narrative":
         return MessageSquare;
-      case "digest_generated":
+      case "event":
         return Clock;
-      case "artifact_created":
+      case "artifact":
         return FileText;
-      case "review_completed":
-        return ClipboardCheck;
+      case "agent":
+        return Bot;
       default:
         return Activity;
     }
   };
 
   const Icon = getActivityIcon();
+  const source = activity.metadata?.source as string | undefined;
 
   return (
     <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
@@ -328,8 +339,8 @@ function ActivityItem({ activity }: { activity: RecentActivity }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-900 truncate">{activity.title}</p>
         <p className="text-xs text-gray-500">
-          {activity.subject_name && (
-            <span className="font-medium">{activity.subject_name} - </span>
+          {source && (
+            <span className="font-medium">{source} - </span>
           )}
           {formatRelativeTime(activity.timestamp)}
         </p>

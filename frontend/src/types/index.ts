@@ -448,23 +448,58 @@ export interface ApiError {
 // Dashboard Types
 // ============================================================================
 
+export interface CountStats {
+  total: number;
+  active: number;
+  new_today: number;
+  new_this_week: number;
+}
+
+export interface NarrativeStats {
+  total: number;
+  by_lifecycle: Record<string, number>;
+  avg_prevalence: number;
+  trending_count: number;
+}
+
+export interface AgentStats {
+  total_runs: number;
+  completed: number;
+  failed: number;
+  running: number;
+  total_tokens_today: number;
+  total_cost_today_usd: number;
+}
+
+export interface SentimentDistribution {
+  positive: number;
+  neutral: number;
+  negative: number;
+}
+
 export interface DashboardStats {
-  total_subjects: number;
-  total_items: number;
-  total_narratives: number;
-  active_agents: number;
-  pending_reviews: number;
-  items_today: number;
+  subjects: CountStats;
+  items: CountStats;
+  events: CountStats;
+  narratives: NarrativeStats;
+  artifacts: CountStats;
+  agents: AgentStats;
+  sentiment_distribution: SentimentDistribution;
+  generated_at: string;
 }
 
 export interface RecentActivity {
   id: string;
-  type: "item_ingested" | "narrative_created" | "narrative_updated" | "digest_generated" | "artifact_created" | "review_completed";
+  type: string;
   title: string;
-  description: string;
-  subject_id?: string;
-  subject_name?: string;
   timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RecentActivityResponse {
+  activities: RecentActivity[];
+  total_count: number;
+  generated_at: string;
 }
 
 // ============================================================================
