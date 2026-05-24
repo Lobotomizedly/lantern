@@ -120,21 +120,21 @@ async def init_database() -> None:
     from app.core.config import settings
 
     async with engine.begin() as conn:
-        # Enable pgvector extension
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        # Enable UUID extension for uuid_generate_v4()
-        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+        # Use advisory lock to prevent concurrent initialization
+        await conn.execute(text("SELECT pg_advisory_lock(12345)"))
 
-        # Import ORM models and create tables
-        from app.models.orm import Base as ORMBase
         try:
+            # Enable pgvector extension
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            # Enable UUID extension for uuid_generate_v4()
+            await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+
+            # Import ORM models and create tables
+            from app.models.orm import Base as ORMBase
             await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
-        except Exception as e:
-            # Ignore errors from concurrent workers trying to create the same objects
-            if "already exists" in str(e).lower():
-                print(f"Database objects already exist (concurrent initialization): {e}")
-            else:
-                raise
+        finally:
+            # Release the advisory lock
+            await conn.execute(text("SELECT pg_advisory_unlock(12345)"))
 
 
 async def close_database() -> None:
