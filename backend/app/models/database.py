@@ -125,21 +125,13 @@ async def init_database() -> None:
         # Enable UUID extension for uuid_generate_v4()
         await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
 
-        # Create tables - always try to create with checkfirst=True
+        # Import ORM models
         from app.models.orm import Base as ORMBase
 
-        # Drop all existing indexes and tables for clean slate
-        try:
-            await conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
-            await conn.execute(text("GRANT ALL ON SCHEMA public TO public;"))
-        except Exception as e:
-            print(f"Schema reset failed (may be OK): {e}")
+        # Drop all tables first, then recreate
+        await conn.run_sync(lambda sync_conn: ORMBase.metadata.drop_all(sync_conn))
 
-        # Re-enable extensions
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
-
-        # Create all tables
+        # Create all tables fresh
         await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn))
 
 
