@@ -264,7 +264,11 @@ class Settings(BaseSettings):
     # ==========================================================================
 
     cors_origins: list[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
+        default=[
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "https://frontend-production-6440.up.railway.app",
+        ],
         description="Allowed CORS origins",
     )
 
