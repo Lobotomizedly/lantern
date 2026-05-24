@@ -128,6 +128,20 @@ async def init_database() -> None:
         # Import ORM models
         from app.models.orm import Base as ORMBase
 
+        # Drop orphan indexes that might exist without tables
+        orphan_indexes = [
+            "ix_items_published_at",
+            "ix_items_subject_id",
+            "ix_items_source_id",
+            "ix_items_item_type",
+            "ix_users_org_role",
+        ]
+        for idx in orphan_indexes:
+            try:
+                await conn.execute(text(f"DROP INDEX IF EXISTS {idx}"))
+            except Exception:
+                pass
+
         # Drop all tables first, then recreate
         await conn.run_sync(lambda sync_conn: ORMBase.metadata.drop_all(sync_conn))
 
