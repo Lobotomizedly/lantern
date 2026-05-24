@@ -16,8 +16,9 @@ COPY frontend/src/lib/ ./src/lib/
 COPY frontend/public/ ./public/
 COPY frontend/next.config.js frontend/tsconfig.json frontend/postcss.config.js frontend/tailwind.config.ts ./
 
-# Debug: list contents
-RUN ls -la src/lib/ && cat src/lib/api.ts | head -3
+# Cache bust and debug: verify latest code
+ARG CACHEBUST=1
+RUN echo "Build timestamp: $(date)" && head -20 src/app/search/page.tsx | grep -E "Suspense|SearchPageContent" && head -20 src/app/timeline/page.tsx | grep -E "Suspense|TimelinePageContent"
 
 # Set build-time environment variable
 ARG NEXT_PUBLIC_API_URL
