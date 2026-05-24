@@ -70,7 +70,8 @@ async def create_subject(
     # Create subject
     subject = Subject(
         name=subject_data.name,
-        description=subject_data.description,
+        subject_type=subject_data.subject_type.value if subject_data.subject_type else "topic",
+        description=subject_data.description or "",
         owner_id=current_user.id,
         organization_id=current_user.organization_id,
         created_at=datetime.utcnow(),
