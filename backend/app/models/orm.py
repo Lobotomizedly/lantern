@@ -485,7 +485,7 @@ class Item(Base, TimestampMixin):
 
     __table_args__ = (
         Index("ix_items_source_published", "source_id", "published_at"),
-        Index("ix_items_published_at", "published_at"),
+        # Note: published_at already has index=True on the column definition
         Index(
             "ix_items_embedding_hnsw",
             "embedding",
