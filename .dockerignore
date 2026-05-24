@@ -1,0 +1,53 @@
+# Dockerignore for Lantern
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (except examples)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+.mypy_cache/
+.pytest_cache/
+
+# Node modules (will be installed in container)
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Infrastructure
+infrastructure/
+
+# Do NOT ignore lib directories - we need frontend/src/lib/
+!**/lib/
+!frontend/src/lib/

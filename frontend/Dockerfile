@@ -9,7 +9,15 @@ COPY frontend/package*.json ./
 RUN npm install
 
 # Copy source code from frontend directory
-COPY frontend/ .
+COPY frontend/src/app/ ./src/app/
+COPY frontend/src/components/ ./src/components/
+COPY frontend/src/types/ ./src/types/
+COPY frontend/src/lib/ ./src/lib/
+COPY frontend/public/ ./public/
+COPY frontend/next.config.js frontend/tsconfig.json frontend/postcss.config.js frontend/tailwind.config.ts ./
+
+# Debug: list contents
+RUN ls -la src/lib/ && cat src/lib/api.ts | head -3
 
 # Set build-time environment variable
 ARG NEXT_PUBLIC_API_URL
