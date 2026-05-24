@@ -117,24 +117,25 @@ async def init_database() -> None:
     This function should be called on application startup to ensure
     the database is properly configured with the pgvector extension.
     """
-    from app.core.config import settings
-
-    async with engine.begin() as conn:
-        # Use advisory lock to prevent concurrent initialization
-        await conn.execute(text("SELECT pg_advisory_lock(12345)"))
-
-        try:
-            # Enable pgvector extension
+    # Create extensions first (separate connection)
+    try:
+        async with engine.connect() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            # Enable UUID extension for uuid_generate_v4()
             await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+            await conn.commit()
+    except Exception as e:
+        print(f"Extension creation (may already exist): {e}")
 
-            # Import ORM models and create tables
-            from app.models.orm import Base as ORMBase
+    # Create tables (separate connection)
+    try:
+        from app.models.orm import Base as ORMBase
+        async with engine.begin() as conn:
             await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
-        finally:
-            # Release the advisory lock
-            await conn.execute(text("SELECT pg_advisory_unlock(12345)"))
+    except Exception as e:
+        # Only ignore "already exists" errors
+        if "already exists" not in str(e).lower():
+            raise
+        print(f"Tables already exist: {e}")
 
 
 async def close_database() -> None:
