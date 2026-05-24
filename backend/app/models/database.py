@@ -127,7 +127,14 @@ async def init_database() -> None:
 
         # Import ORM models and create tables
         from app.models.orm import Base as ORMBase
-        await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
+        try:
+            await conn.run_sync(lambda sync_conn: ORMBase.metadata.create_all(sync_conn, checkfirst=True))
+        except Exception as e:
+            # Ignore errors from concurrent workers trying to create the same objects
+            if "already exists" in str(e).lower():
+                print(f"Database objects already exist (concurrent initialization): {e}")
+            else:
+                raise
 
 
 async def close_database() -> None:
