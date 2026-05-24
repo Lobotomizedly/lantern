@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from app.api.routes import (
+    auth,
     subjects,
     search,
     narratives,
@@ -201,6 +202,11 @@ def register_routers(app: FastAPI) -> None:
 
     api_prefix = "/api/v1"
 
+    app.include_router(
+        auth.router,
+        prefix=api_prefix,
+        tags=["Authentication"],
+    )
     app.include_router(
         subjects.router,
         prefix=f"{api_prefix}/subjects",

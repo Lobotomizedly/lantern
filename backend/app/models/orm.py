@@ -1548,6 +1548,11 @@ class User(Base, TimestampMixin):
         index=True,
         doc="Whether the user account is active",
     )
+    hashed_password: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="Hashed password for authentication",
+    )
     settings: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
