@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Sparkles, Clock, X } from "lucide-react";
@@ -54,19 +54,21 @@ function SearchPageContent() {
     enabled: !!query.q || !!query.subject_id,
   });
 
-  const fetchSuggestions = useCallback(
-    debounce(async (value: string) => {
-      if (value.length < 2) {
-        setSuggestions([]);
-        return;
-      }
-      try {
-        const suggestions = await searchSuggestions(value);
-        setSuggestions(suggestions);
-      } catch {
-        setSuggestions([]);
-      }
-    }, 300),
+  // Memoize the debounced function to prevent recreation on every render
+  const fetchSuggestions = useMemo(
+    () =>
+      debounce(async (value: string) => {
+        if (value.length < 2) {
+          setSuggestions([]);
+          return;
+        }
+        try {
+          const results = await searchSuggestions(value);
+          setSuggestions(results);
+        } catch {
+          setSuggestions([]);
+        }
+      }, 300),
     []
   );
 
@@ -77,14 +79,26 @@ function SearchPageContent() {
     setShowSuggestions(true);
   };
 
+  // Track if we need to refetch after state update
+  const pendingRefetch = useRef(false);
+
+  // Effect to handle refetch after query state updates
+  useEffect(() => {
+    if (pendingRefetch.current) {
+      pendingRefetch.current = false;
+      refetch();
+    }
+  }, [query, refetch]);
+
   const handleSearch = (searchValue?: string) => {
     const q = searchValue ?? inputValue;
     if (q.trim()) {
       addRecentSearch(q.trim());
     }
-    setQuery({ q: q.trim(), page: 1 });
     setShowSuggestions(false);
-    refetch();
+    // Mark that we need to refetch after state update completes
+    pendingRefetch.current = true;
+    setQuery({ q: q.trim(), page: 1 });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

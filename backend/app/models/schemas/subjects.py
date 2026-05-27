@@ -131,13 +131,39 @@ class SubjectResponse(BaseSchema):
 
     id: UUID = Field(..., description="Unique identifier")
     name: str = Field(..., description="Name of the subject")
+    type: str = Field(default="topic", description="Type of subject")
     description: Optional[str] = None
+    aliases: list[str] = Field(default_factory=list, description="Alternative names")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     owner_id: Optional[UUID] = None
     organization_id: Optional[UUID] = None
     is_archived: bool = False
     config: Optional[SubjectConfig] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        """Custom validation to map subject_type to type."""
+        if hasattr(obj, "subject_type"):
+            # Create a dict from the object and map subject_type -> type
+            # ORM uses metadata_ to avoid conflict with SQLAlchemy's metadata
+            data = {
+                "id": obj.id,
+                "name": obj.name,
+                "type": obj.subject_type if obj.subject_type else "topic",
+                "description": obj.description,
+                "aliases": getattr(obj, "aliases", None) or [],
+                "metadata": getattr(obj, "metadata_", None) or {},
+                "owner_id": obj.owner_id,
+                "organization_id": obj.organization_id,
+                "is_archived": obj.is_archived,
+                "config": obj.config,
+                "created_at": obj.created_at,
+                "updated_at": obj.updated_at,
+            }
+            return super().model_validate(data, **kwargs)
+        return super().model_validate(obj, **kwargs)
 
 
 class SubjectListResponse(BaseModel):
@@ -149,6 +175,7 @@ class SubjectListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    has_more: bool = False
 
 
 class SubjectMetrics(BaseModel):

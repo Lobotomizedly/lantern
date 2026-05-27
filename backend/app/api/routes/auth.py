@@ -8,13 +8,18 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import DatabaseSession
 from app.core.security import create_access_token, create_refresh_token
 from app.models.orm import User
+
+# Password hashing context using bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -56,19 +61,8 @@ async def register(
     Register a new user account.
 
     Creates a new user and returns access and refresh tokens.
+    Uses database unique constraint to handle race conditions.
     """
-    # Check if user already exists
-    result = await db.execute(
-        select(User).where(User.email == request.email)
-    )
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-
     # Create new user
     user = User(
         id=uuid4(),
@@ -79,8 +73,15 @@ async def register(
         is_active=True,
     )
 
-    db.add(user)
-    await db.flush()
+    try:
+        db.add(user)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
 
     # Generate tokens
     access_token = create_access_token({"sub": str(user.id)})
@@ -129,11 +130,35 @@ async def login(
 
 
 def _hash_password(password: str) -> str:
-    """Simple password hashing using SHA256. Use bcrypt in production."""
-    import hashlib
-    return hashlib.sha256(password.encode()).hexdigest()
+    """
+    Hash password using bcrypt with automatic salt generation.
+
+    Bcrypt includes the salt in the output hash, making it resistant to
+    rainbow table attacks and providing adaptive cost factor for future-proofing.
+    """
+    return pwd_context.hash(password)
 
 
 def _verify_password(password: str, hashed: str) -> bool:
-    """Verify password against hash."""
-    return _hash_password(password) == hashed
+    """
+    Verify password against hash.
+
+    Supports backwards compatibility with legacy SHA256 hashes:
+    - SHA256 hashes are 64 character hex strings
+    - Bcrypt hashes start with '$2b$' and are longer
+
+    If a legacy SHA256 hash is detected, verification will still work,
+    but users should be prompted to update their password on next login
+    to migrate to bcrypt.
+    """
+    import hashlib
+
+    # Check if this is a legacy SHA256 hash (64 char hex string, no bcrypt prefix)
+    if len(hashed) == 64 and not hashed.startswith('$'):
+        # Legacy SHA256 verification for backwards compatibility
+        # TODO: Log warning and prompt user to update password after successful login
+        legacy_hash = hashlib.sha256(password.encode()).hexdigest()
+        return legacy_hash == hashed
+
+    # Bcrypt verification
+    return pwd_context.verify(password, hashed)

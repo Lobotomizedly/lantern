@@ -348,7 +348,12 @@ async def get_recent_activity(
     Activities are sorted by most recent first.
     """
     activities: list[ActivityItem] = []
-    per_type_limit = limit // 5 if activity_types is None else limit // len(activity_types) if activity_types else limit
+    if activity_types is None:
+        per_type_limit = max(1, limit // 5)
+    elif activity_types:
+        per_type_limit = max(1, limit // len(activity_types))
+    else:
+        per_type_limit = limit
 
     # Get recent items
     if activity_types is None or "item" in activity_types:
@@ -407,11 +412,12 @@ async def get_recent_activity(
         )
         narratives_result = await db.execute(narratives_query)
         for narrative in narratives_result.scalars().all():
+            thesis_text = narrative.thesis or ""
             activities.append(
                 ActivityItem(
                     id=str(narrative.id),
                     type="narrative",
-                    title=narrative.thesis[:100] + "..." if len(narrative.thesis) > 100 else narrative.thesis,
+                    title=thesis_text[:100] + "..." if len(thesis_text) > 100 else thesis_text,
                     timestamp=narrative.updated_at,
                     metadata={
                         "lifecycle": narrative.lifecycle,

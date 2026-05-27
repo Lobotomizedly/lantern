@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -39,7 +39,7 @@ import { formatRelativeTime, cn } from "@/lib/utils";
 import { Subject } from "@/types";
 
 const subjectTypeIcons: Record<
-  Subject["type"],
+  string,
   React.ComponentType<{ className?: string }>
 > = {
   person: User,
@@ -54,38 +54,60 @@ export default function SubjectsPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [newSubject, setNewSubject] = useState({
     name: "",
     type: "organization" as Subject["type"],
     description: "",
   });
 
-  const { data: subjects, isLoading, refetch } = useQuery({
+  const { data: subjects, isLoading, error, refetch } = useQuery({
     queryKey: ["subjects", page],
     queryFn: () => getSubjects(page, 20),
+    retry: false,
   });
 
+  // Handle loading and error states
+  if (error) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-500">Failed to load subjects. Please try logging in again.</p>
+        <Button className="mt-4" onClick={() => window.location.href = "/login"}>
+          Go to Login
+        </Button>
+      </div>
+    );
+  }
+
   const filteredSubjects =
-    subjects?.items.filter((subject) => {
+    (subjects?.items || []).filter((subject) => {
       const matchesSearch =
         searchQuery === "" ||
         subject.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         subject.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const subjectType = subject.type || subject.subject_type || "topic";
       const matchesType =
-        typeFilter === "all" || subject.type === typeFilter;
+        typeFilter === "all" || subjectType === typeFilter;
       return matchesSearch && matchesType;
     }) ?? [];
 
-  const handleCreateSubject = async () => {
+  const handleCreateSubject = useCallback(async () => {
+    setCreateError(null);
+    setIsCreating(true);
     try {
       await createSubject(newSubject);
       setIsCreateOpen(false);
       setNewSubject({ name: "", type: "organization", description: "" });
       refetch();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to create subject. Please try again.";
+      setCreateError(errorMessage);
       console.error("Failed to create subject:", error);
+    } finally {
+      setIsCreating(false);
     }
-  };
+  }, [newSubject, refetch]);
 
   return (
     <div className="space-y-6">
@@ -193,7 +215,12 @@ export default function SubjectsPage() {
       )}
 
       {/* Create Subject Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+      <Dialog open={isCreateOpen} onOpenChange={(open) => {
+        setIsCreateOpen(open);
+        if (!open) {
+          setCreateError(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Subject</DialogTitle>
@@ -202,6 +229,11 @@ export default function SubjectsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {createError && (
+              <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
+                {createError}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Name
@@ -212,6 +244,7 @@ export default function SubjectsPage() {
                   setNewSubject({ ...newSubject, name: e.target.value })
                 }
                 placeholder="Enter subject name"
+                disabled={isCreating}
               />
             </div>
             <div>
@@ -226,6 +259,7 @@ export default function SubjectsPage() {
                     type: value as Subject["type"],
                   })
                 }
+                disabled={isCreating}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -249,18 +283,19 @@ export default function SubjectsPage() {
                   setNewSubject({ ...newSubject, description: e.target.value })
                 }
                 placeholder="Brief description"
+                disabled={isCreating}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isCreating}>
               Cancel
             </Button>
             <Button
               onClick={handleCreateSubject}
-              disabled={!newSubject.name.trim()}
+              disabled={!newSubject.name.trim() || isCreating}
             >
-              Create Subject
+              {isCreating ? "Creating..." : "Create Subject"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -270,7 +305,9 @@ export default function SubjectsPage() {
 }
 
 function SubjectCard({ subject }: { subject: Subject }) {
-  const Icon = subjectTypeIcons[subject.type] || Users;
+  const subjectType = subject.type || subject.subject_type || "topic";
+  const Icon = subjectTypeIcons[subjectType] || Users;
+  const aliases = subject.aliases || [];
 
   return (
     <Link href={`/subjects/${subject.id}`}>
@@ -284,7 +321,7 @@ function SubjectCard({ subject }: { subject: Subject }) {
               <div>
                 <h3 className="font-semibold text-gray-900">{subject.name}</h3>
                 <Badge variant="secondary" className="mt-1 capitalize">
-                  {subject.type}
+                  {subjectType}
                 </Badge>
               </div>
             </div>
@@ -297,16 +334,16 @@ function SubjectCard({ subject }: { subject: Subject }) {
             </p>
           )}
 
-          {subject.aliases.length > 0 && (
+          {aliases.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1">
-              {subject.aliases.slice(0, 3).map((alias, i) => (
+              {aliases.slice(0, 3).map((alias, i) => (
                 <Badge key={i} variant="outline" className="text-xs">
                   {alias}
                 </Badge>
               ))}
-              {subject.aliases.length > 3 && (
+              {aliases.length > 3 && (
                 <Badge variant="outline" className="text-xs">
-                  +{subject.aliases.length - 3}
+                  +{aliases.length - 3}
                 </Badge>
               )}
             </div>

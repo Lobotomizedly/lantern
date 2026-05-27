@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.api.routes import (
     auth,
@@ -27,6 +29,25 @@ from app.api.routes import (
 )
 from app.core.config import settings
 from app.core.database import database_pool
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # Prevent clickjacking
+        response.headers["X-Frame-Options"] = "DENY"
+        # XSS protection for older browsers
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Strict Transport Security (for HTTPS in production)
+        if settings.ENVIRONMENT == "production":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
 
 
 class LanternException(Exception):
@@ -113,15 +134,24 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Configure CORS
+    # Configure CORS with specific methods and headers (avoid wildcards with credentials)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+        ],
         expose_headers=["X-Total-Count", "X-Page", "X-Page-Size"],
     )
+
+    # Add security headers middleware
+    application.add_middleware(SecurityHeadersMiddleware)
 
     # Register exception handlers
     register_exception_handlers(application)

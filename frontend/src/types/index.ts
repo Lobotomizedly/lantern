@@ -70,13 +70,28 @@ export type ArtifactStatus = "draft" | "pending_review" | "approved" | "rejected
 // Core Domain Types
 // ============================================================================
 
+export interface SubjectConfig {
+  keywords: string[];
+  entities: string[];
+  sources: string[];
+  alert_thresholds?: Record<string, unknown> | null;
+  collection_schedule?: string | null;
+  is_active: boolean;
+  last_collection_at?: string | null;
+}
+
 export interface Subject {
   id: string;
   name: string;
-  type: "person" | "organization" | "topic" | "event" | "product";
+  type?: "person" | "organization" | "topic" | "event" | "product";
+  subject_type?: string;
   description?: string;
-  aliases: string[];
-  metadata: Record<string, unknown>;
+  aliases?: string[];
+  metadata?: Record<string, unknown>;
+  owner_id?: string;
+  organization_id?: string | null;
+  is_archived?: boolean;
+  config?: SubjectConfig;
   created_at: string;
   updated_at: string;
 }

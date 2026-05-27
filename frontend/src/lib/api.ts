@@ -54,10 +54,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized
+      // Handle unauthorized - clear token before redirect to avoid race condition
       if (typeof window !== "undefined") {
         localStorage.removeItem("lantern_token");
-        window.location.href = "/login";
+        localStorage.removeItem("lantern_refresh_token");
+        // Use setTimeout to ensure localStorage operations complete before redirect
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 0);
       }
     }
     return Promise.reject(error);
@@ -100,10 +104,20 @@ export async function getSubject(id: string): Promise<Subject> {
 }
 
 export async function createSubject(data: Partial<Subject>): Promise<Subject> {
-  // Transform frontend field names to backend field names
+  // Map frontend type names to backend enum values
+  const typeMap: Record<string, string> = {
+    organization: "org",
+    person: "person",
+    topic: "topic",
+    event: "topic",  // Backend doesn't have event, map to topic
+    product: "topic", // Backend doesn't have product, map to topic
+  };
+
+  const subjectType = data.type || "topic";
+
   const payload = {
     name: data.name,
-    subject_type: data.type,  // Backend expects subject_type, not type
+    subject_type: typeMap[subjectType] || "topic",
     description: data.description,
     config: {
       keywords: [],

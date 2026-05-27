@@ -19,8 +19,11 @@ class SubjectType(str, Enum):
     """Type of subject being tracked."""
 
     PERSON = "person"
-    ORG = "org"
+    ORGANIZATION = "organization"
+    ORG = "org"  # Alias for backwards compatibility
     TOPIC = "topic"
+    EVENT = "event"
+    PRODUCT = "product"
 
 
 class EntityType(str, Enum):

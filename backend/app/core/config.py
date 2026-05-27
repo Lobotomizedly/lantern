@@ -5,10 +5,11 @@ This module defines all environment variables and configuration settings
 for the Lantern Narrative Intelligence Platform.
 """
 
+import secrets
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -216,9 +217,9 @@ class Settings(BaseSettings):
     # Authentication Settings
     # ==========================================================================
 
-    jwt_secret_key: SecretStr = Field(
-        default=SecretStr("CHANGE-THIS-IN-PRODUCTION-USE-SECURE-SECRET"),
-        description="Secret key for JWT token signing",
+    jwt_secret_key: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret key for JWT token signing. REQUIRED in production.",
     )
     jwt_algorithm: str = Field(
         default="HS256",
@@ -232,6 +233,74 @@ class Settings(BaseSettings):
         default=7,
         description="Refresh token expiration time in days",
     )
+
+    @model_validator(mode="after")
+    def validate_jwt_secret_key(self) -> "Settings":
+        """
+        Validate JWT secret key configuration.
+
+        In production: Requires JWT_SECRET_KEY to be explicitly set via environment.
+        In non-production: Generates a random secret if not provided (with warning).
+        """
+        # Define known insecure default values that should be rejected
+        insecure_defaults = {
+            "CHANGE-THIS-IN-PRODUCTION-USE-SECURE-SECRET",
+            "secret",
+            "changeme",
+            "your-secret-key",
+            "jwt-secret",
+        }
+
+        is_production = self.environment.lower() == "production"
+
+        if self.jwt_secret_key is None:
+            if is_production:
+                raise ValueError(
+                    "CRITICAL: JWT_SECRET_KEY environment variable is required in production. "
+                    "Generate a secure secret with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                )
+            # Generate a random secret for development/staging
+            import warnings
+            warnings.warn(
+                "JWT_SECRET_KEY not set. Generating a random secret for non-production use. "
+                "This secret will change on each restart, invalidating existing tokens.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.jwt_secret_key = SecretStr(secrets.token_urlsafe(64))
+        else:
+            # Check if the provided secret is an insecure default
+            secret_value = self.jwt_secret_key.get_secret_value()
+            if secret_value.lower() in {s.lower() for s in insecure_defaults}:
+                if is_production:
+                    raise ValueError(
+                        f"CRITICAL: JWT_SECRET_KEY contains an insecure default value. "
+                        "Generate a secure secret with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                    )
+                import warnings
+                warnings.warn(
+                    "JWT_SECRET_KEY contains an insecure default value. "
+                    "This is acceptable for development but MUST be changed for production.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+            # Validate minimum secret length (at least 32 characters for HS256)
+            if len(secret_value) < 32:
+                if is_production:
+                    raise ValueError(
+                        "CRITICAL: JWT_SECRET_KEY must be at least 32 characters long. "
+                        "Generate a secure secret with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                    )
+                import warnings
+                warnings.warn(
+                    f"JWT_SECRET_KEY is only {len(secret_value)} characters. "
+                    "Recommended minimum is 32 characters for security.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        return self
 
     # ==========================================================================
     # Content Processing Settings

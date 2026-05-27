@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { Header } from "@/components/layout/Header";
@@ -29,6 +30,12 @@ function Providers({ children }: { children: React.ReactNode }) {
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { sidebarCollapsed } = useUIStore();
+  const pathname = usePathname();
+
+  // Don't show sidebar/header on login page
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

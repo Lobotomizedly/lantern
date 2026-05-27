@@ -528,7 +528,8 @@ class FilingParser:
         text_upper = text.upper()
 
         for item_num in self.CURRENT_REPORT_ITEMS.keys():
-            pattern = rf"ITEM\s+{item_num.replace('.', r'\.')}"
+            escaped_item = item_num.replace('.', r'\.')
+            pattern = rf"ITEM\s+{escaped_item}"
             if re.search(pattern, text_upper):
                 items.append(item_num)
 

@@ -37,7 +37,7 @@ import { formatDate, formatRelativeTime, cn } from "@/lib/utils";
 import { Subject, SentimentChartData } from "@/types";
 
 const subjectTypeIcons: Record<
-  Subject["type"],
+  string,
   React.ComponentType<{ className?: string }>
 > = {
   person: User,
@@ -117,7 +117,9 @@ export default function SubjectDashboardPage() {
     );
   }
 
-  const Icon = subjectTypeIcons[subject.type] || Users;
+  const subjectType = subject.type || subject.subject_type || "topic";
+  const aliases = subject.aliases || [];
+  const Icon = subjectTypeIcons[subjectType] || Users;
 
   return (
     <div className="space-y-6">
@@ -139,9 +141,9 @@ export default function SubjectDashboardPage() {
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary" className="capitalize">
-                  {subject.type}
+                  {subjectType}
                 </Badge>
-                {subject.aliases.slice(0, 2).map((alias, i) => (
+                {aliases.slice(0, 2).map((alias, i) => (
                   <Badge key={i} variant="outline" className="text-xs">
                     {alias}
                   </Badge>

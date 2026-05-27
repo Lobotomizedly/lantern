@@ -68,9 +68,10 @@ async def create_subject(
         )
 
     # Create subject
+    # Note: subject_type is already a string due to use_enum_values=True in BaseSchema
     subject = Subject(
         name=subject_data.name,
-        subject_type=subject_data.subject_type.value if subject_data.subject_type else "topic",
+        subject_type=subject_data.subject_type if subject_data.subject_type else "topic",
         description=subject_data.description or "",
         owner_id=current_user.id,
         organization_id=current_user.organization_id,
@@ -163,6 +164,7 @@ async def list_subjects(
         total=total,
         page=pagination.page,
         page_size=pagination.page_size,
+        has_more=(pagination.page * pagination.page_size) < total,
     )
 
 
@@ -406,3 +408,79 @@ def _generate_digest_summary(flags: list[SentinelFlag], severity_counts: dict) -
 
     total = sum(severity_counts.values())
     return f"{total} flag(s) under monitoring. Latest: {flags[0].flag_type if flags else 'N/A'}."
+
+
+@router.post(
+    "/{subject_id}/digests/generate",
+    response_model=dict,
+    summary="Generate a new digest",
+    description="Trigger digest generation for a subject.",
+)
+async def generate_digest(
+    subject_id: VerifiedSubjectAccess,
+    db: DatabaseSession,
+    current_user: CurrentUser,
+) -> dict:
+    """
+    Trigger digest generation for a subject.
+    Returns a task_id that can be used to track the generation progress.
+    """
+    from celery import Celery
+    import os
+
+    # Verify subject exists
+    subject = await db.get(Subject, subject_id)
+    if not subject:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Subject with id '{subject_id}' not found",
+        )
+
+    # Send task to Celery worker
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    celery_app = Celery("lantern", broker=redis_url)
+
+    result = celery_app.send_task(
+        "worker.generate_digest",
+        args=[str(subject_id)],
+    )
+
+    return {"task_id": str(result.id), "status": "queued"}
+
+
+@router.post(
+    "/{subject_id}/collect",
+    response_model=dict,
+    summary="Trigger data collection",
+    description="Trigger data collection for a subject.",
+)
+async def trigger_collection(
+    subject_id: VerifiedSubjectAccess,
+    db: DatabaseSession,
+    current_user: CurrentUser,
+) -> dict:
+    """
+    Trigger data collection for a subject.
+    Returns a task_id that can be used to track the collection progress.
+    """
+    from celery import Celery
+    import os
+
+    # Verify subject exists
+    subject = await db.get(Subject, subject_id)
+    if not subject:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Subject with id '{subject_id}' not found",
+        )
+
+    # Send task to Celery worker
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    celery_app = Celery("lantern", broker=redis_url)
+
+    result = celery_app.send_task(
+        "worker.collect_for_subject",
+        args=[str(subject_id)],
+    )
+
+    return {"task_id": str(result.id), "status": "queued"}
